@@ -48,3 +48,6 @@ async def create_code(item: Item):
 async def read_code():
     code = list(collection.find())
     return [serialize_dict(item) for item in code]
+
+def main(request):
+    return app(request)
