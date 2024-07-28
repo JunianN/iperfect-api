@@ -1,11 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
-from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 from typing import List
-from .models import PyObjectId, UDF, Configs
+from models import PyObjectId, UDF, Configs
 from bson import ObjectId
 
 load_dotenv()
@@ -41,6 +40,7 @@ async def get_udf(udf_id: str):
         return udf
     raise HTTPException(status_code=404, detail="UDF not found")
 
+
 @app.get("/udf/", response_model=List[UDF])
 async def get_all_udfs():
     udfs = []
@@ -49,10 +49,23 @@ async def get_all_udfs():
         udfs.append(udf)
     return udfs
 
+
+@app.put("/udf/{udf_id}", response_model=UDF)
+async def update_udf(udf_id: str, udf: UDF):
+    udf_dict = udf.model_dump(by_alias=True)
+    udf_dict.pop("_id", None)
+    if not udf_collection.find_one({"_id": ObjectId(udf_id)}):
+        raise HTTPException(status_code=404, detail="Udf not found")
+    udf_collection.update_one({"_id": ObjectId(udf_id)}, {"$set": udf_dict})
+    updated_udf = udf_collection.find_one({"_id": ObjectId(udf_id)})
+    updated_udf["_id"] = str(updated_udf["_id"])
+    return UDF(**updated_udf)
+
+
 @app.post("/config/", response_model=Configs)
 async def create_config(config: Configs):
     config_dict = config.model_dump(by_alias=True)
-    if not all (udf_collection.find_one({"_id": pid}) for pid in config.udf_ids):
+    if not all(udf_collection.find_one({"_id": pid}) for pid in config.udf_ids):
         raise HTTPException(status_code=404, detail="One or more UDF not found")
     result = config_collection.insert_one(config_dict)
     config_dict["_id"] = result.inserted_id
@@ -67,6 +80,7 @@ async def get_config(config_id: str):
         return config
     raise HTTPException(status_code=404, detail="Config not found")
 
+
 @app.get("/config/", response_model=List[Configs])
 async def get_all_configs():
     configs = []
@@ -75,6 +89,7 @@ async def get_all_configs():
         config["udf_ids"] = [str(pid) for pid in config["udf_ids"]]
         configs.append(config)
     return configs
+
 
 @app.get("/config/{config_id}/details")
 async def get_config_details(config_id: str):
@@ -88,6 +103,7 @@ async def get_config_details(config_id: str):
         return config
     raise HTTPException(status_code=404, detail="Config not found")
 
+
 @app.post("/udf/{config_id}/add", response_model=Configs)
 async def create_udf_and_add_to_config(config_id: str, udf: UDF):
     udf_dict = udf.model_dump(by_alias=True)
@@ -97,8 +113,7 @@ async def create_udf_and_add_to_config(config_id: str, udf: UDF):
 
     if (config := config_collection.find_one({"_id": ObjectId(config_id)})) is not None:
         config_collection.update_one(
-            {"_id": ObjectId(config_id)},
-            {"$push": {"udf_ids": new_udf.id}}
+            {"_id": ObjectId(config_id)}, {"$push": {"udf_ids": new_udf.id}}
         )
         config["udf_ids"].append(new_udf.id)
         config["_id"] = str(config["_id"])
@@ -106,6 +121,8 @@ async def create_udf_and_add_to_config(config_id: str, udf: UDF):
         return config
 
     raise HTTPException(status_code=404, detail="config not found")
+
+
 # class Formula(BaseModel):
 #     name: str
 #     function: UDF
