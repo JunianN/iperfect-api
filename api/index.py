@@ -5,7 +5,7 @@ from pydantic import BaseModel
 import os
 from dotenv import load_dotenv
 from typing import List
-from models import PyObjectId, UDF, Configs
+from .models import PyObjectId, UDF, Configs
 from bson import ObjectId
 
 load_dotenv()
