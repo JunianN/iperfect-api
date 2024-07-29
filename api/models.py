@@ -38,10 +38,15 @@ class UDF(BaseModel):
             ObjectId: str
         }
 
+class UdfGroup(BaseModel):
+    name: str
+    udf_ids: List[str]
+
 class Configs(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     name: str
-    udf_ids: List[PyObjectId] = Field(default_factory=list)
+    # udf_ids: List[PyObjectId] = Field(default_factory=list)
+    groups: List[UdfGroup]
 
     class Config:
         populate_by_name = True
