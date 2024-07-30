@@ -45,7 +45,6 @@ class UdfGroup(BaseModel):
 class Configs(BaseModel):
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     name: str
-    # udf_ids: List[PyObjectId] = Field(default_factory=list)
     groups: List[UdfGroup]
 
     class Config:
@@ -54,3 +53,13 @@ class Configs(BaseModel):
         json_encoders = {
             ObjectId: str
         }
+
+class Factory(BaseModel):
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+    name: str
+    config_id: Optional[str]
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}

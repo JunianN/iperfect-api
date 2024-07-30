@@ -4,7 +4,7 @@ from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
 from typing import List
-from models import PyObjectId, UDF, Configs, UdfGroup
+from models import PyObjectId, UDF, Configs, UdfGroup, Factory
 from bson import ObjectId
 
 load_dotenv()
@@ -24,6 +24,7 @@ client = MongoClient(conn_string)
 db = client["iperfect-db"]
 udf_collection = db["function-code"]
 config_collection = db["config"]
+factory_collection = db["factory"]
     
 @app.post("/udf/", response_model=UDF)
 async def create_udf(udf: UDF):
@@ -87,7 +88,8 @@ async def get_all_configs():
     configs = []
     for config in config_collection.find():
         config["_id"] = str(config["_id"])
-        config["udf_ids"] = [str(pid) for pid in config["udf_ids"]]
+        for group in config["groups"]:
+            group["udf_ids"] = [str(pid) for pid in group["udf_ids"]]
         configs.append(config)
     return configs
 
@@ -146,3 +148,84 @@ async def create_group_in_config(config_id: str, group: UdfGroup):
         return Configs(**config)
 
     raise HTTPException(status_code=404, detail="Config not found")
+
+@app.post("/factory", response_model=Factory)
+async def create_factory(factory: Factory):
+    factory_data = factory.model_dump(by_alias=True)
+    factory_collection.insert_one(factory_data)
+    factory_data["_id"] = str(factory_data["_id"])
+    return Factory(**factory_data)
+
+@app.put("/factory/{factory_id}/config/{config_id}", response_model=Factory)
+async def assign_config_to_factory(factory_id: str, config_id: str):
+    factory = factory_collection.find_one({"_id": ObjectId(factory_id)})
+    config = config_collection.find_one({"_id": ObjectId(config_id)})
+
+    if not factory:
+        raise HTTPException(status_code=404, detail="Factory not found")
+    if not config:
+        raise HTTPException(status_code=404, detail="Config not found")
+
+    factory["config_id"] = ObjectId(config_id)
+    factory_collection.update_one({"_id": ObjectId(factory_id)}, {"$set": {"config_id": ObjectId(config_id)}})
+    
+    factory["_id"] = str(factory["_id"])
+    factory["config_id"] = str(factory["config_id"])
+    return Factory(**factory)
+
+@app.get("/factory/{factory_id}", response_model=Factory)
+async def get_factory(factory_id: str):
+    factory = factory_collection.find_one({"_id": ObjectId(factory_id)})
+    if not factory:
+        raise HTTPException(status_code=404, detail="Factory not found")
+    
+    factory["_id"] = str(factory["_id"])
+    if factory["order_id"]:
+        factory["order_id"] = str(factory["order_id"])
+    return Factory(**factory)
+
+# @app.get("/factory", response_model=List[Factory])
+# async def get_all_factorys():
+#     factorys = []
+#     for factory in factory_collection.find():
+#         factory["_id"] = str(factory["_id"])
+#         if factory.get("order_id"):
+#             factory["order_id"] = str(factory["order_id"])
+#         factorys.append(Factory(**factory))
+#     return factorys
+
+@app.get("/factories")
+async def get_all_factories():
+    factories = []
+    for factory in factory_collection.find():
+        factory["_id"] = str(factory["_id"])
+        if factory.get("config_id"):
+            config = config_collection.find_one({"_id": ObjectId(factory["config_id"])})
+            if config:
+                config["_id"] = str(config["_id"])
+                detailed_groups = []
+                for group in config["groups"]:
+                    udfs = list(udf_collection.find({"_id": {"$in": group["udf_ids"]}}))
+                    for udf in udfs:
+                        udf["_id"] = str(udf["_id"])
+                    detailed_groups.append({"name": group["name"], "udfs": udfs})
+                config["groups"] = detailed_groups
+                factory["config"] = config
+            else:
+                raise HTTPException(status_code=404, detail="Config not found")
+        else:
+            raise HTTPException(status_code=404, detail="Config_id not found")
+        factories.append(factory)
+    return factories
+
+    # if (config := config_collection.find_one({"_id": ObjectId(config_id)})) is not None:
+    #     detailed_groups = []
+    #     for group in config["groups"]:
+    #         udfs = list(udf_collection.find({"_id": {"$in": group["udf_ids"]}}))
+    #         for udf in udfs:
+    #             udf["_id"] = str(udf["_id"])
+    #         detailed_groups.append({"name": group["name"], "udfs": udfs})
+    #     config["groups"] = detailed_groups
+    #     config["_id"] = str(config["_id"])
+    #     return config
+    # raise HTTPException(status_code=404, detail="Config not found")
