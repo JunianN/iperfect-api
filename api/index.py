@@ -180,8 +180,8 @@ async def get_factory(factory_id: str):
         raise HTTPException(status_code=404, detail="Factory not found")
     
     factory["_id"] = str(factory["_id"])
-    if factory["order_id"]:
-        factory["order_id"] = str(factory["order_id"])
+    if factory["config_id"]:
+        factory["config_id"] = str(factory["config_id"])
     return Factory(**factory)
 
 # @app.get("/factory", response_model=List[Factory])
@@ -189,8 +189,8 @@ async def get_factory(factory_id: str):
 #     factorys = []
 #     for factory in factory_collection.find():
 #         factory["_id"] = str(factory["_id"])
-#         if factory.get("order_id"):
-#             factory["order_id"] = str(factory["order_id"])
+#         if factory.get("config_id"):
+#             factory["config_id"] = str(factory["config_id"])
 #         factorys.append(Factory(**factory))
 #     return factorys
 
@@ -200,6 +200,7 @@ async def get_all_factories():
     for factory in factory_collection.find():
         factory["_id"] = str(factory["_id"])
         if factory.get("config_id"):
+            factory["config_id"] = str(factory["config_id"])
             config = config_collection.find_one({"_id": ObjectId(factory["config_id"])})
             if config:
                 config["_id"] = str(config["_id"])
